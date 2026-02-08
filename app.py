@@ -1,7 +1,7 @@
 """
 Flask Bridge for BUTT (Broadcast Using This Tool) Control
 Provides REST API to control streaming and recording functions
-Corrected version using command-line interface
+Corrected version using command-line interface with proper CORS configuration
 """
 
 from flask import Flask, jsonify, render_template, request
@@ -12,7 +12,27 @@ import time
 import psutil
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS to allow requests from your production domain
+# Add your production domain(s) to the origins list
+ALLOWED_ORIGINS = [
+    "http://localhost:*",
+    "http://127.0.0.1:*",
+    "http://192.168.1.25:*",
+    "https://evangelo.org",
+    "http://evangelo.org",
+    "https://www.evangelo.org",
+    "http://www.evangelo.org",
+]
+
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ALLOWED_ORIGINS,
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+        "supports_credentials": False
+    }
+})
 
 # Configuration
 BUTT_EXECUTABLE = "butt"  # or full path like /usr/bin/butt
@@ -74,6 +94,8 @@ class BUTTController:
                 '-p', str(self.command_port)  # Port of BUTT instance
             ] + command_args
             
+            print(f"[BUTT] Executing command: {' '.join(cmd)}")
+            
             # Execute command
             result = subprocess.run(
                 cmd,
@@ -81,6 +103,10 @@ class BUTTController:
                 text=True,
                 timeout=5
             )
+            
+            print(f"[BUTT] Return code: {result.returncode}")
+            print(f"[BUTT] Stdout: '{result.stdout}'")
+            print(f"[BUTT] Stderr: '{result.stderr}'")
             
             # Check if command was successful
             if result.returncode == 0:
@@ -96,8 +122,66 @@ class BUTTController:
         except Exception as e:
             return False, f"Error executing command: {str(e)}"
     
+    def get_detailed_status(self):
+        """
+        Get detailed status by parsing BUTT's status output.
+        Returns dict with streaming and recording states.
+        """
+        success, msg = self.send_command(['-S'])
+        
+        status = {
+            'streaming': False,
+            'recording': False,
+            'raw_message': msg if success else None,
+            'command_success': success
+        }
+        
+        if not success or not msg:
+            return status
+        
+        # Clean up the message
+        msg_clean = msg.strip()
+        
+        print(f"[BUTT] Status message: '{msg_clean}'")
+        
+        # Parse the key:value format from BUTT
+        # BUTT returns status in format like:
+        # connecting: 0
+        # recording: 0
+        # signal present: 1
+        # etc.
+        
+        lines = msg_clean.split('\n')
+        status_dict = {}
+        
+        for line in lines:
+            line = line.strip()
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip().lower()
+                value = value.strip()
+                status_dict[key] = value
+        
+        print(f"[BUTT] Parsed dict: {status_dict}")
+        
+        # Check streaming status
+        # connecting: 1 means streaming is active
+        # connecting: 0 means not streaming
+        if 'connected' in status_dict:
+            status['streaming'] = status_dict['connected'] == '1'
+
+        # Check recording status
+        # recording: 1 means recording is active
+        # recording: 0 means not recording
+        if 'recording' in status_dict:
+            status['recording'] = status_dict['recording'] == '1'
+        
+        print(f"[BUTT] Parsed - Streaming: {status['streaming']}, Recording: {status['recording']}")
+        
+        return status
+    
     def get_status(self):
-        """Request status from BUTT"""
+        """Request status from BUTT - returns raw output"""
         return self.send_command(['-S'])
     
     def start_streaming(self):
@@ -133,11 +217,49 @@ controller = BUTTController()
 @app.route('/')
 def index():
     """Serve the control interface"""
-    return render_template('index.html')
+    return jsonify({
+        'status': 'BUTT Bridge API Server',
+        'version': '1.0',
+        'endpoints': {
+            'status': '/api/status',
+            'debug': '/api/debug/butt-status',
+            'butt_start': '/api/butt/start',
+            'butt_quit': '/api/butt/quit',
+            'stream_start': '/api/stream/start',
+            'stream_stop': '/api/stream/stop',
+            'record_start': '/api/record/start',
+            'record_stop': '/api/record/stop',
+            'record_split': '/api/record/split',
+            'song_update': '/api/song/update'
+        }
+    })
 
-@app.route('/api/status', methods=['GET'])
+@app.route('/api/debug/butt-status', methods=['GET'])
+def debug_butt_status():
+    """Debug endpoint to see raw BUTT status output"""
+    if not controller.is_butt_running():
+        return jsonify({
+            'running': False,
+            'message': 'BUTT is not running'
+        })
+    
+    success, status_msg = controller.get_status()
+    return jsonify({
+        'running': True,
+        'command_success': success,
+        'raw_output': status_msg,
+        'raw_output_repr': repr(status_msg),
+        'raw_output_bytes': [ord(c) for c in status_msg[:50]] if status_msg else [],
+        'lowercase': status_msg.lower() if status_msg else '',
+        'stripped': status_msg.strip() if status_msg else ''
+    })
+
+@app.route('/api/status', methods=['GET', 'OPTIONS'])
 def get_status():
     """Get current status of BUTT"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     is_running = controller.is_butt_running()
     
     status_info = {
@@ -153,30 +275,34 @@ def get_status():
     }
     
     if is_running:
-        # Try to get status from BUTT
-        success, status_msg = controller.get_status()
-        if success and status_msg:
-            # Parse status message to determine streaming/recording state
-            # BUTT status format may vary, adjust parsing as needed
-            status_lower = status_msg.lower()
-            status_info['streaming'] = 'streaming' in status_lower or 'connected' in status_lower
-            status_info['recording'] = 'recording' in status_lower
-            status_info['status_message'] = status_msg
+        # Get detailed status by parsing BUTT's output
+        detailed_status = controller.get_detailed_status()
+        
+        status_info['streaming'] = detailed_status['streaming']
+        status_info['recording'] = detailed_status['recording']
+        status_info['status_message'] = detailed_status['raw_message']
+        status_info['command_success'] = detailed_status['command_success']
     
     return jsonify(status_info)
 
-@app.route('/api/butt/start', methods=['POST'])
+@app.route('/api/butt/start', methods=['POST', 'OPTIONS'])
 def start_butt():
     """Start BUTT application"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     success = controller.start_butt()
     return jsonify({
         'success': success,
         'message': 'BUTT started successfully' if success else 'Failed to start BUTT. Make sure it is installed.'
     })
 
-@app.route('/api/butt/quit', methods=['POST'])
+@app.route('/api/butt/quit', methods=['POST', 'OPTIONS'])
 def quit_butt():
     """Quit BUTT application"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -186,9 +312,12 @@ def quit_butt():
         'message': message
     })
 
-@app.route('/api/stream/start', methods=['POST'])
+@app.route('/api/stream/start', methods=['POST', 'OPTIONS'])
 def start_stream():
     """Start streaming"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -199,9 +328,12 @@ def start_stream():
         'message': message
     })
 
-@app.route('/api/stream/stop', methods=['POST'])
+@app.route('/api/stream/stop', methods=['POST', 'OPTIONS'])
 def stop_stream():
     """Stop streaming"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -212,9 +344,12 @@ def stop_stream():
         'message': message
     })
 
-@app.route('/api/record/start', methods=['POST'])
+@app.route('/api/record/start', methods=['POST', 'OPTIONS'])
 def start_record():
     """Start recording"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -225,9 +360,12 @@ def start_record():
         'message': message
     })
 
-@app.route('/api/record/stop', methods=['POST'])
+@app.route('/api/record/stop', methods=['POST', 'OPTIONS'])
 def stop_record():
     """Stop recording"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -238,9 +376,12 @@ def stop_record():
         'message': message
     })
 
-@app.route('/api/record/split', methods=['POST'])
+@app.route('/api/record/split', methods=['POST', 'OPTIONS'])
 def split_record():
     """Split current recording"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -251,9 +392,12 @@ def split_record():
         'message': message
     })
 
-@app.route('/api/song/update', methods=['POST'])
+@app.route('/api/song/update', methods=['POST', 'OPTIONS'])
 def update_song():
     """Update song name metadata"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
     if not controller.is_butt_running():
         return jsonify({'success': False, 'message': 'BUTT is not running'}), 400
     
@@ -274,13 +418,24 @@ if __name__ == '__main__':
     print("=" * 60)
     print("BUTT Controller Bridge Starting...")
     print("=" * 60)
-    print(f"Web interface: http://localhost:5000")
+    print(f"Server running on: http://0.0.0.0:5000")
+    print(f"Access via localhost: http://localhost:5000")
+    print(f"Access via network: http://<your-ip>:5000")
     print(f"API endpoints available at /api/*")
     print(f"BUTT executable: {BUTT_EXECUTABLE}")
     print(f"Command port: {BUTT_COMMAND_PORT}")
     print("=" * 60)
+    print("\nCORS Configuration:")
+    print("- Allowing ALL origins (safe for local development)")
+    print("- Credentials: NOT required")
+    print("- This allows cross-network requests")
+    print("=" * 60)
     print("\nMake sure BUTT is installed and accessible in your PATH")
     print("On Ubuntu/Debian: sudo apt-get install butt")
     print("On macOS: Download from https://danielnoethen.de/butt")
+    print("=" * 60)
+    print("\nIMPORTANT: If your Vue app is on a different machine or IP,")
+    print("make sure to access this server using the same network IP")
+    print("that your Vue app uses (not localhost).")
     print("=" * 60)
     app.run(debug=True, host='0.0.0.0', port=5000)
