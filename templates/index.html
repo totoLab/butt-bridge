@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUTT Controller</title>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --broadcast-red: #FF1744;
+            --record-orange: #FF6D00;
+            --active-green: #00E676;
+            --bg-dark: #0A0E27;
+            --bg-darker: #050811;
+            --text-primary: #FFFFFF;
+            --text-secondary: #8B92B0;
+            --border-glow: #2D3561;
+            --glass: rgba(255, 255, 255, 0.03);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Mono', monospace;
+            background: var(--bg-darker);
+            color: var(--text-primary);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(var(--border-glow) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border-glow) 1px, transparent 1px);
+            background-size: 50px 50px;
+            opacity: 0.1;
+            animation: gridPulse 4s ease-in-out infinite;
+            z-index: 0;
+        }
+        
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.1; }
+            50% { opacity: 0.15; }
+        }
+        
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 30px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 80px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+        
+        h1 {
+            font-family: 'Archivo Black', sans-serif;
+            font-size: 5rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--broadcast-red), var(--record-orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-transform: uppercase;
+            animation: titleGlow 2s ease-in-out infinite;
+        }
+        
+        @keyframes titleGlow {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(255, 23, 68, 0.3)); }
+            50% { filter: drop-shadow(0 0 40px rgba(255, 23, 68, 0.5)); }
+        }
+        
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+            animation: fadeIn 1s ease-out 0.2s both;
+        }
+        
+        .status-card {
+            background: var(--glass);
+            border: 2px solid var(--border-glow);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .status-card:hover::before {
+            opacity: 1;
+        }
+        
+        .status-card:hover {
+            border-color: var(--broadcast-red);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(255, 23, 68, 0.2);
+        }
+        
+        .status-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        
+        .status-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .status-indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .status-indicator.active {
+            background: var(--active-green);
+            box-shadow: 0 0 20px var(--active-green);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px var(--active-green); }
+            50% { box-shadow: 0 0 35px var(--active-green); }
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            animation: fadeIn 1s ease-out 0.4s both;
+        }
+        
+        .control-section {
+            background: var(--bg-dark);
+            border: 2px solid var(--border-glow);
+            border-radius: 24px;
+            padding: 40px;
+            position: relative;
+        }
+        
+        .control-section::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, var(--broadcast-red), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .control-section:hover::after {
+            opacity: 1;
+        }
+        
+        .section-title {
+            font-family: 'Archivo Black', sans-serif;
+            font-size: 2rem;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: -0.01em;
+        }
+        
+        .section-title.streaming {
+            color: var(--broadcast-red);
+        }
+        
+        .section-title.recording-title {
+            color: var(--record-orange);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            flex: 1;
+            min-width: 120px;
+            padding: 18px 32px;
+            font-family: 'Space Mono', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            background: var(--glass);
+            color: var(--text-primary);
+            border: 2px solid var(--border-glow);
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn span {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, var(--active-green), #00C853);
+            border-color: var(--active-green);
+            box-shadow: 0 4px 20px rgba(0, 230, 118, 0.3);
+        }
+        
+        .btn-start:hover {
+            box-shadow: 0 6px 30px rgba(0, 230, 118, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, var(--broadcast-red), #D50000);
+            border-color: var(--broadcast-red);
+            box-shadow: 0 4px 20px rgba(255, 23, 68, 0.3);
+        }
+        
+        .btn-stop:hover {
+            box-shadow: 0 6px 30px rgba(255, 23, 68, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .message {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 20px 30px;
+            background: var(--bg-dark);
+            border: 2px solid var(--border-glow);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .message.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .message.success {
+            border-color: var(--active-green);
+            box-shadow: 0 4px 20px rgba(0, 230, 118, 0.2);
+        }
+        
+        .message.error {
+            border-color: var(--broadcast-red);
+            box-shadow: 0 4px 20px rgba(255, 23, 68, 0.2);
+        }
+        
+        .song-update {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-glow);
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--glass);
+            border: 2px solid var(--border-glow);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--active-green);
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 3rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BUTT CTRL</h1>
+            <div class="subtitle">Broadcast Control Interface</div>
+        </header>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <div class="status-label">BUTT Status</div>
+                <div class="status-value">
+                    <div class="status-indicator" id="butt-indicator"></div>
+                    <span id="butt-status">Checking...</span>
+                </div>
+            </div>
+            
+            <div class="status-card">
+                <div class="status-label">Stream Status</div>
+                <div class="status-value">
+                    <div class="status-indicator" id="stream-indicator"></div>
+                    <span id="stream-status">Offline</span>
+                </div>
+            </div>
+            
+            <div class="status-card">
+                <div class="status-label">Record Status</div>
+                <div class="status-value">
+                    <div class="status-indicator" id="record-indicator"></div>
+                    <span id="record-status">Stopped</span>
+                </div>
+            </div>
+            
+            <div class="status-card">
+                <div class="status-label">Control Method</div>
+                <div class="status-value">
+                    <span id="control-method" style="font-size: 1.2rem;">Command Line</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-section streaming">
+                <h2 class="section-title streaming">Streaming</h2>
+                <div class="button-group">
+                    <button class="btn btn-start" id="stream-start" onclick="startStream()">
+                        <span>▶ Start</span>
+                    </button>
+                    <button class="btn btn-stop" id="stream-stop" onclick="stopStream()">
+                        <span>■ Stop</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="control-section recording">
+                <h2 class="section-title recording-title">Recording</h2>
+                <div class="button-group">
+                    <button class="btn btn-start" id="record-start" onclick="startRecord()">
+                        <span>● Start</span>
+                    </button>
+                    <button class="btn btn-stop" id="record-stop" onclick="stopRecord()">
+                        <span>■ Stop</span>
+                    </button>
+                    <button class="btn" id="record-split" onclick="splitRecord()">
+                        <span>✂ Split</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="control-section" style="grid-column: 1 / -1;">
+                <h2 class="section-title">Song Metadata</h2>
+                <div class="song-update">
+                    <div class="input-group">
+                        <input type="text" id="song-name" placeholder="Enter song name...">
+                        <button class="btn btn-start" onclick="updateSong()">
+                            <span>Update</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="message" id="message"></div>
+    
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        
+        // Update status every 2 seconds
+        setInterval(updateStatus, 2000);
+        updateStatus();
+        
+        async function updateStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                const data = await response.json();
+                
+                // Update BUTT status
+                const buttIndicator = document.getElementById('butt-indicator');
+                const buttStatus = document.getElementById('butt-status');
+                if (data.butt_running) {
+                    buttIndicator.classList.add('active');
+                    buttStatus.textContent = 'Running';
+                } else {
+                    buttIndicator.classList.remove('active');
+                    buttStatus.textContent = 'Stopped';
+                }
+                
+                // Update stream status
+                const streamIndicator = document.getElementById('stream-indicator');
+                const streamStatus = document.getElementById('stream-status');
+                if (data.streaming) {
+                    streamIndicator.classList.add('active');
+                    streamStatus.textContent = 'Live';
+                } else {
+                    streamIndicator.classList.remove('active');
+                    streamStatus.textContent = 'Offline';
+                }
+                
+                // Update record status
+                const recordIndicator = document.getElementById('record-indicator');
+                const recordStatus = document.getElementById('record-status');
+                if (data.recording) {
+                    recordIndicator.classList.add('active');
+                    recordStatus.textContent = 'Recording';
+                } else {
+                    recordIndicator.classList.remove('active');
+                    recordStatus.textContent = 'Stopped';
+                }
+                
+                // Update control method
+                if (data.capabilities) {
+                    const controlMethod = document.getElementById('control-method');
+                    controlMethod.textContent = data.capabilities.control_method.replace('_', ' ').toUpperCase();
+                }
+            } catch (error) {
+                console.error('Status update failed:', error);
+            }
+        }
+        
+        async function startStream() {
+            try {
+                const response = await fetch(`${API_BASE}/stream/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                updateStatus();
+            } catch (error) {
+                showMessage('Failed to start stream', 'error');
+            }
+        }
+        
+        async function stopStream() {
+            try {
+                const response = await fetch(`${API_BASE}/stream/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                updateStatus();
+            } catch (error) {
+                showMessage('Failed to stop stream', 'error');
+            }
+        }
+        
+        async function startRecord() {
+            try {
+                const response = await fetch(`${API_BASE}/record/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                updateStatus();
+            } catch (error) {
+                showMessage('Failed to start recording', 'error');
+            }
+        }
+        
+        async function stopRecord() {
+            try {
+                const response = await fetch(`${API_BASE}/record/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                updateStatus();
+            } catch (error) {
+                showMessage('Failed to stop recording', 'error');
+            }
+        }
+        
+        async function splitRecord() {
+            try {
+                const response = await fetch(`${API_BASE}/record/split`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                updateStatus();
+            } catch (error) {
+                showMessage('Failed to split recording', 'error');
+            }
+        }
+        
+        async function updateSong() {
+            const songName = document.getElementById('song-name').value;
+            if (!songName) {
+                showMessage('Please enter a song name', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/song/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ song_name: songName })
+                });
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    document.getElementById('song-name').value = '';
+                }
+            } catch (error) {
+                showMessage('Failed to update song name', 'error');
+            }
+        }
+        
+        function showMessage(text, type) {
+            const message = document.getElementById('message');
+            message.textContent = text;
+            message.className = `message show ${type}`;
+            
+            setTimeout(() => {
+                message.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
