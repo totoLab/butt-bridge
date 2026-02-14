@@ -1,6 +1,8 @@
-flask==3.0.0
-flask-cors==4.0.0
-flask-socketio==5.3.5
-python-socketio==5.10.0
-psutil==5.9.6
-eventlet==0.33.3
+Flask
+flask-cors
+psutil
+cx-Freeze
+pystray
+Pillow
+systemd-python
+python-dotenv

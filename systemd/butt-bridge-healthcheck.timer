@@ -1,0 +1,12 @@
+[Unit]
+Description=BUTT Bridge Health Check Timer
+Requires=butt-bridge.service
+
+[Timer]
+# Run health check every 5 minutes
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=butt-bridge-healthcheck.service
+
+[Install]
+WantedBy=timers.target
