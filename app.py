@@ -10,6 +10,7 @@ import subprocess
 import os
 import time
 import psutil
+import sys
 
 app = Flask(__name__)
 
@@ -57,15 +58,32 @@ class BUTTController:
         return False
     
     def start_butt(self):
-        """Start BUTT application with command server enabled"""
+        """Start BUTT application with command server enabled as a detached process"""
         try:
             if not self.is_butt_running():
-                # Start BUTT with command server on default port
-                subprocess.Popen(
-                    [self.butt_executable, '-p', str(self.command_port)],
-                    stdout=subprocess.DEVNULL, 
-                    stderr=subprocess.DEVNULL
-                )
+                # Start BUTT as a detached process
+                if sys.platform == 'win32':
+                    # Windows: Use CREATE_NEW_PROCESS_GROUP and DETACHED_PROCESS flags
+                    DETACHED_PROCESS = 0x00000008
+                    subprocess.Popen(
+                        [self.butt_executable, '-p', str(self.command_port)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        creationflags=DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                        close_fds=True
+                    )
+                else:
+                    # Unix/Linux/Mac: Use start_new_session
+                    subprocess.Popen(
+                        [self.butt_executable, '-p', str(self.command_port)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        start_new_session=True,
+                        close_fds=True
+                    )
+                
                 time.sleep(3)  # Wait for BUTT to initialize
                 return self.is_butt_running()
             return True
