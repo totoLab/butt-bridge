@@ -16,6 +16,7 @@ import psutil
 import platform
 import signal
 import argparse
+import socket
 
 # Try to import pystray and PIL (Windows system tray)
 try:
@@ -34,6 +35,24 @@ from butt_bridge import app, controller, ALLOWED_ORIGINS, BUTT_COMMAND_PORT
 IS_LINUX = platform.system() == "Linux"
 IS_WINDOWS = platform.system() == "Windows"
 
+def get_local_ip():
+    """Get the local IP address of the machine"""
+    try:
+        # Create a socket to determine the local IP
+        # This doesn't actually connect, just determines which interface would be used
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        try:
+            # Fallback method
+            hostname = socket.gethostname()
+            return socket.gethostbyname(hostname)
+        except Exception:
+            return "Unable to detect"
+
 class TrayApp:
     def __init__(self, headless=False):
         self.icon = None
@@ -41,6 +60,7 @@ class TrayApp:
         self.server_running = False
         self.headless = headless or IS_LINUX
         self.shutdown_event = threading.Event()
+        self.local_ip = get_local_ip()
         
     def create_image(self, color="green"):
         """Create a simple colored circle icon"""
@@ -81,12 +101,14 @@ class TrayApp:
         print("BUTT Controller Bridge Starting...")
         print("=" * 60)
         print(f"Platform: {platform.system()}")
-        print(f"Server running on: http://0.0.0.0:5000")
-        print(f"Access via localhost: http://localhost:5000")
+        print(f"Local IP: {self.local_ip}")
+        print(f"Server running on: http://0.0.0.0:5001")
+        print(f"Access via localhost: http://localhost:5001")
+        print(f"Access via network: http://{self.local_ip}:5001")
         if not self.headless:
             print(f"System tray icon active")
         print("=" * 60)
-        app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)
+        app.run(debug=False, host='0.0.0.0', port=5001, use_reloader=False)
     
     def stop_server(self):
         """Stop Flask server"""
@@ -99,21 +121,30 @@ class TrayApp:
             
         if not self.server_running:
             self.icon.icon = self.create_image("red")
-            self.icon.title = "BUTT Bridge - Server Stopped"
+            self.icon.title = f"BUTT Bridge - Server Stopped\nIP: {self.local_ip}"
         elif controller.is_butt_running():
             self.icon.icon = self.create_image("green")
-            self.icon.title = "BUTT Bridge - Running (BUTT Connected)"
+            self.icon.title = f"BUTT Bridge - Running (BUTT Connected)\nIP: {self.local_ip}:5001"
         else:
             self.icon.icon = self.create_image("yellow")
-            self.icon.title = "BUTT Bridge - Running (BUTT Disconnected)"
+            self.icon.title = f"BUTT Bridge - Running (BUTT Disconnected)\nIP: {self.local_ip}:5001"
     
     def open_browser(self):
         """Open web interface in browser"""
-        webbrowser.open('http://localhost:5000')
+        webbrowser.open('http://localhost:5001')
     
     def open_api_status(self):
         """Open API status endpoint"""
-        webbrowser.open('http://localhost:5000/api/status')
+        webbrowser.open('http://localhost:5001/api/status')
+    
+    def show_ip_info(self):
+        """Show IP address information"""
+        message = f"Local IP: {self.local_ip}\nPort: 5001\n\nAccess from network:\nhttp://{self.local_ip}:5001"
+        
+        if TRAY_AVAILABLE and self.icon:
+            self.icon.notify(message, "BUTT Bridge - Network Info")
+        else:
+            print(f"\n[NETWORK INFO]\n{message}\n")
     
     def start_butt(self):
         """Start BUTT application"""
@@ -133,7 +164,8 @@ class TrayApp:
         """Check and display status"""
         butt_running = controller.is_butt_running()
         status = f"Server: {'Running' if self.server_running else 'Stopped'}\n"
-        status += f"BUTT: {'Running' if butt_running else 'Not Running'}"
+        status += f"BUTT: {'Running' if butt_running else 'Not Running'}\n"
+        status += f"IP: {self.local_ip}:5001"
         
         # On Windows, we could show a notification
         if TRAY_AVAILABLE and self.icon:
@@ -155,6 +187,10 @@ class TrayApp:
             MenuItem(
                 'Status',
                 self.check_status
+            ),
+            MenuItem(
+                f'IP: {self.local_ip}:5001',
+                self.show_ip_info
             ),
             Menu.SEPARATOR,
             MenuItem(
@@ -191,6 +227,8 @@ class TrayApp:
     def run_headless(self):
         """Run in headless mode (for systemd service)"""
         print("Running in headless mode (systemd service)")
+        print(f"Local IP: {self.local_ip}")
+        print(f"Access via: http://{self.local_ip}:5001")
         print("Press Ctrl+C to quit")
         
         # Setup signal handlers for systemd
@@ -224,6 +262,8 @@ class TrayApp:
             self.run_headless()
         elif not TRAY_AVAILABLE:
             print("Running in console mode (no system tray)")
+            print(f"Local IP: {self.local_ip}")
+            print(f"Access via: http://{self.local_ip}:5001")
             print("Press Ctrl+C to quit")
             try:
                 while True:
@@ -236,7 +276,7 @@ class TrayApp:
             self.icon = Icon(
                 "BUTT Bridge",
                 self.create_image("yellow"),
-                "BUTT Bridge - Starting...",
+                f"BUTT Bridge - Starting...\nIP: {self.local_ip}:5001",
                 menu=self.create_menu()
             )
             
@@ -265,6 +305,8 @@ def main():
     """)
     
     print(f"Platform: {platform.system()}")
+    local_ip = get_local_ip()
+    print(f"Local IP: {local_ip}")
     
     if IS_LINUX:
         print("✓ Running on Linux")
