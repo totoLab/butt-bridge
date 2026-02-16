@@ -1,50 +1,27 @@
-"""
-cx_Freeze setup script for BUTT Controller Bridge with System Tray
-Creates Windows MSI installer
-Reads configuration from .env file
-"""
 from cx_Freeze import setup, Executable
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Load environment variables from .env file
-def load_env_file(env_path=".env"):
-    """Load environment variables from .env file"""
-    env_vars = {}
-    env_file = Path(env_path)
-    
-    if not env_file.exists():
-        print(f"Warning: {env_path} file not found. Using default values.")
-        return env_vars
-    
-    with open(env_file, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            # Skip empty lines and comments
-            if not line or line.startswith('#'):
-                continue
-            # Parse KEY=VALUE pairs
-            if '=' in line:
-                key, value = line.split('=', 1)
-                # Remove quotes if present
-                value = value.strip().strip('"').strip("'")
-                env_vars[key.strip()] = value
-    
-    return env_vars
+env_path = Path(".env")
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"Loaded environment variables from {env_path}")
+else:
+    print(f"Warning: {env_path} file not found. Using default values or environment variables.")
 
-# Load environment variables
-env_vars = load_env_file()
+# Get configuration from .env or environment variables
+AUTHOR = os.getenv('AUTHOR', 'Unknown Author')
+UPGRADE_CODE = os.getenv('UPGRADE_CODE', '{00000000-0000-0000-0000-000000000000}')
+APP_URL = os.getenv('APP_URL', 'https://example.com')
 
-# Get configuration from .env or use defaults
-AUTHOR = env_vars.get('AUTHOR')
-UPGRADE_CODE = env_vars.get('UPGRADE_CODE')
-APP_URL = env_vars.get('APP_URL')
-
-print(f"Building with configuration:")
+print(f"\nBuilding with configuration:")
 print(f"  Author: {AUTHOR}")
 print(f"  Upgrade Code: {UPGRADE_CODE}")
 print(f"  App URL: {APP_URL}")
+print()
 
 # Dependencies are automatically detected, but some modules need help
 build_exe_options = {
@@ -61,6 +38,7 @@ build_exe_options = {
         "webbrowser",
         "pystray",
         "PIL",
+        "dotenv",  # Add python-dotenv
     ],
     "includes": [
         "flask.json",
@@ -88,7 +66,7 @@ build_exe_options = {
 
 # MSI-specific options
 bdist_msi_options = {
-    "upgrade_code": UPGRADE_CODE,
+    "upgrade_code": f"{{{UPGRADE_CODE}}}",
     "add_to_path": False,
     "initial_target_dir": r"[ProgramFilesFolder]\BUTT Controller Bridge",
     "install_icon": None,  # Add path to .ico file if you have one
