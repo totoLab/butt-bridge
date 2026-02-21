@@ -24,7 +24,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:*",
     "http://127.0.0.1:*",
     "http://192.168.1.25:*",
-    "http://192.168.1.17:*",
+    "http://192.168.1.168:*",
     "https://evangelo.org",
     "http://evangelo.org",
     "https://www.evangelo.org",
@@ -509,14 +509,15 @@ class BUTTController:
         
         print(f"[BUTT] Parsed dict: {status_dict}")
         
+        # Check connecting status first (before connected)
+        if 'connecting' in status_dict:
+            status['connecting'] = status_dict['connecting'] == '1'
+        
         # Check streaming status
         if 'connected' in status_dict:
             status['connected'] = status_dict['connected'] == '1'
-            status['streaming'] = status_dict['connected'] == '1'
-        
-        # Check connecting status
-        if 'connecting' in status_dict:
-            status['connecting'] = status_dict['connecting'] == '1'
+            # Only mark as streaming if connected and not in connecting state
+            status['streaming'] = status_dict['connected'] == '1' and not status['connecting']
         
         # Check recording status
         if 'recording' in status_dict:
@@ -526,7 +527,7 @@ class BUTTController:
         if 'signal present' in status_dict:
             status['signal_present'] = status_dict['signal present'] == '1'
         
-        print(f"[BUTT] Parsed - Streaming: {status['streaming']}, Recording: {status['recording']}")
+        print(f"[BUTT] Parsed - Streaming: {status['streaming']}, Connecting: {status['connecting']}, Recording: {status['recording']}")
         
         # Cache the result
         if use_cache:
