@@ -108,7 +108,7 @@ class TrayApp:
         if not self.headless:
             print(f"System tray icon active")
         print("=" * 60)
-        app.run(debug=False, host='0.0.0.0', port=5001, use_reloader=False)
+        app.run(debug=False, host='0.0.0.0', port=5001, use_reloader=False, ssl_context='adhoc')
     
     def stop_server(self):
         """Stop Flask server"""

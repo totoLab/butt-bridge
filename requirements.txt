@@ -6,3 +6,4 @@ pystray
 Pillow
 systemd-python
 python-dotenv
+pyopenssl
